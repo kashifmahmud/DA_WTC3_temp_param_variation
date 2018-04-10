@@ -70,12 +70,12 @@ tnc.partitioning = read.csv("processed_data/tnc_partitioning_data.csv")
 # 
 # #-------------------------------------------------------------------------------------
 # # # 3000 chain length is sufficient for the convergance
-# chainLength = 300
-# no.param.par.var = 2
-# with.storage = T
-# model.comparison=F
-# model.optimization=F
-# treat.group=c(list(list(c(1,2),c(1,2))))
+chainLength = 100
+no.param.par.var = 2
+with.storage = T
+model.comparison=F
+model.optimization=F
+treat.group=c(list(c(1,2)))
 # # start <- proc.time() # Start clock
 # # # result = CBM.wtc3(chainLength = 3000, no.param.par.var=(nrow(data.all)/4)/30, treat.group=treat.group, with.storage, model.comparison=F, model.optimization=F) # Monthly parameters
 # result = CBM.wtc3(chainLength, no.param.par.var, treat.group, with.storage, model.comparison, model.optimization) # Quadratic/Cubic parameters
@@ -104,7 +104,7 @@ result.cluster = list()
 bic.cluster = list()
 
 start <- proc.time() # Start clock
-result <- clusterMap(cluster, CBM.wtc3, treat.group=c(list(list(1,2))),
+result <- clusterMap(cluster, CBM.wtc3, treat.group=c(list(list(c(1,2)))),
                      MoreArgs=list(chainLength=1000, no.param.par.var=2, with.storage=T, model.comparison=F, model.optimization=F))
 
 # # Test whether parameters need to be seperate for both ambient and warmed treatments
@@ -125,7 +125,7 @@ write.csv(result[[1]][[6]], "output/bic.csv", row.names=FALSE)
 # Plot parameters and biomass data fit
 plot.Modelled.parameters.wtc3(result,with.storage=T)
 plot.Modelled.biomass.wtc3(result,with.storage=T)
-
+result[[1]][[6]]
 #-------------------------------------------------------------------------------------
 # Calculate total C partitioning for individual treatments 
 # and make figure 7 and Table S1

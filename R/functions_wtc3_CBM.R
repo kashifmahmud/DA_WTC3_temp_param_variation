@@ -11,9 +11,11 @@ logLikelihood.wtc3 <- function (no.param.par.var,data.set,output,with.storage,mo
   # data_count = sum(!is.na(data.set$LM)) + sum(!is.na(data.set$WM)) + sum(!is.na(data.set$RM)) + sum(!is.na(data.set$TNC_leaf)) + sum(!is.na(data.set$litter))
   # data_count = sum(!is.na(data.set$LM)) + sum(!is.na(data.set$WM)) + sum(!is.na(data.set$RM)) + sum(!is.na(data.set$litter))
   
+  data.set = data.set[with(data.set, order(T_treatment,Date)), ]
+  
   for (i in 1:nrow(data.set)) {
     if (!is.na(data.set$LM[i])) {
-      logLi[i] = - 2*((data_count/sum(!is.na(data.set$LM)))*(0.5*((output$Mleaf[i] - data.set$LM[i])/data.set$LM_SE[i])^2 - log(data.set$LM_SE[i]) - log(2*pi)^0.5))
+      logLi[i] = - ((data_count/sum(!is.na(data.set$LM)))*(0.5*((output$Mleaf[i] - data.set$LM[i])/data.set$LM_SE[i])^2 - log(data.set$LM_SE[i]) - log(2*pi)^0.5))
       # logLi[i] = - 0.5*((output$Mleaf[i] - data.set$LM[i])/data.set$LM_SE[i])^2 - log(data.set$LM_SE[i]) - log(2*pi)^0.5
     }
     if (!is.na(data.set$WM[i])) {
@@ -53,6 +55,8 @@ logLikelihood.wtc3 <- function (no.param.par.var,data.set,output,with.storage,mo
 # This script calcualtes LogLikelihood to find the most accurate model
 logLikelihood.wtc3.final <- function (no.param.par.var,data.set,output,with.storage,model.comparison) {
   logLi <- matrix(0, nrow=nrow(data.set), ncol = 1) # Initialising the logLi
+  
+  data.set = data.set[with(data.set, order(T_treatment,Date)), ]
   
   for (i in 1:nrow(data.set)) {
     if (!is.na(data.set$LM[i])) {
@@ -123,19 +127,21 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
   # Assign inputs for MCMC
   bunr_in = chainLength * 0.1 # Discard the first 10% iterations for Burn-IN in MCMC (According to Oijen, 2008)
   if (with.storage==T) {
-    no.var = 6 # variables to be modelled are: k,Y,af,as,sf,sr
+    no.var = 10 # variables to be modelled are: k,Y,af1,as1,sf1,sr1,af2,as2,sf2,sr2
   } else {
-    no.var = 5 # variables to be modelled are: Y,af,as,sf,sr
+    no.var = 9 # variables to be modelled are: Y,af1,as1,sf1,sr1,af2,as2,sf2,sr2
   }
   
-  treat = as.factor(c("ambient","elevated","amb+ele","amb+ele+const")) # Assign all treatments
-  treat = factor(treat, levels=c(sort(setdiff(unique(treat), 'amb+ele'),decreasing=FALSE), 'amb+ele'))
+  treat = as.factor(c("ambient","elevated")) # Assign all treatments
+  
+  # treat = as.factor(c("ambient","elevated","amb+ele","amb+ele+const")) # Assign all treatments
+  # treat = factor(treat, levels=c(sort(setdiff(unique(treat), 'amb+ele'),decreasing=FALSE), 'amb+ele'))
   
   param.mean = data.frame(matrix(ncol = no.var+1, nrow = length(no.param.par.var)*length(treat.group)))
   if (with.storage==T) {
-    names(param.mean) = c("k","Y","af","as","ar","sf","sr")
+    names(param.mean) = c("k","Y","af1","as1","sf1","sr1","af2","as2","sf2","sr2")
   } else {
-    names(param.mean) = c("Y","af","as","ar","sf","sr")
+    names(param.mean) = c("Y","af1","as1","sf1","sr1","af2","as2","sf2","sr2")
   }
   aic.bic = data.frame(matrix(ncol = 6, nrow = length(no.param.par.var)*length(treat.group)))
   names(aic.bic) <- c("logLi","aic","bic","time","no.param","treatment")
@@ -154,7 +160,7 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
     v = unlist(treat.group[v1])
     # # This script take the subset of processed data for particular treatment group
     # source("R/data_processing_wtc3.R", local=TRUE)
-    data = subset(data.all,(treatment.no %in% treat.group[v]))
+    data = subset(data.all,(treatment.no %in% v))
     
     for (z in 1:length(no.param.par.var)) {
       # Initialize few output data files
@@ -224,10 +230,14 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       
       # Calculating model outputs for the starting point of the chain
       for (j in 1:length(v)) {
-        data.set = subset(data,(treatment.no %in% treat.group[v[j]]))
+        data.set = subset(data,(treatment.no %in% j))
         if (no.param.par.var < 5) {
           if (with.storage==T) {
-            output.set = model(no.param,data.set,tnc.partitioning,Y=pValues$Y,k=pValues$k,af=pValues$af,as=pValues$as,sf=pValues$sf,sr=pValues$sr)
+            if (j==1) {
+              output.set = model(no.param,data.set,tnc.partitioning,Y=pValues$Y,k=pValues$k,af=pValues$af1,as=pValues$as1,sf=pValues$sf1,sr=pValues$sr1)
+            } else {
+              output.set = model(no.param,data.set,tnc.partitioning,Y=pValues$Y,k=pValues$k,af=pValues$af2,as=pValues$as2,sf=pValues$sf2,sr=pValues$sr2)
+            } 
           } else {
             output.set = model.without.storage(no.param,data.set,Y=pValues$Y,af=pValues$af,as=pValues$as,sf=pValues$sf,sr=pValues$sr)
           }
@@ -287,9 +297,9 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       logL0 <- logLikelihood.wtc3(no.param.par.var,data,output,with.storage,model.comparison) # Calculate log likelihood of starting point of the chain
       
       if (with.storage==T) {
-        pChain[1,] <- c(pValues$k,pValues$Y,pValues$af,pValues$as,pValues$sf,pValues$sr,logL0) # Assign the first parameter set with log likelihood
+        pChain[1,] <- c(pValues$k,pValues$Y,pValues$af1,pValues$as1,pValues$sf1,pValues$sr1,pValues$af2,pValues$as2,pValues$sf2,pValues$sr2,logL0) # Assign the first parameter set with log likelihood
       } else {
-        pChain[1,] <- c(pValues$Y,pValues$af,pValues$as,pValues$sf,pValues$sr,logL0) # Assign the first parameter set with log likelihood
+        pChain[1,] <- c(pValues$Y,pValues$af1,pValues$as1,pValues$sf1,pValues$sr1,pValues$af2,pValues$as2,pValues$sf2,pValues$sr2,logL0) # Assign the first parameter set with log likelihood
       }
       
       
@@ -302,9 +312,9 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
         }
         candidatepValues = data.frame(candidatepValues)
         if (with.storage==T) {
-          names(candidatepValues) <- c("k","Y","af","as","sf","sr")
+          names(candidatepValues) <- c("k","Y","af1","as1","sf1","sr1","af2","as2","sf2","sr2")
         } else {
-          names(candidatepValues) <- c("Y","af","as","sf","sr")
+          names(candidatepValues) <- c("Y","af1","as1","sf1","sr1","af2","as2","sf2","sr2")
         }
         
         # Reflected back to generate another candidate value
@@ -330,7 +340,8 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
         # Calculating the outputs for the candidate parameter vector and then log likelihood
         if (Prior1 > 0) {
           for (j in 1:length(v)) {
-            data.set = subset(data,(treatment.no %in% treat.group[v[j]]))
+            # data.set = subset(data,(treatment.no %in% treat.group[v[j]]))
+            data.set = subset(data,(treatment.no %in% j))
             #   Mleaf = Mwood = Mroot = c()
             #   Mleaf[1] <- data.set$Mleaf[1]
             #   Mwood[1] <- data.set$Mwood[1]
@@ -338,8 +349,13 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
             
             if (no.param.par.var < 5) {
               if (with.storage==T) {
-                out.cand.set = model(no.param,data.set,tnc.partitioning,candidatepValues$Y,
-                                     candidatepValues$k,candidatepValues$af,candidatepValues$as,candidatepValues$sf,candidatepValues$sr)
+                if (j==1) {
+                  out.cand.set = model(no.param,data.set,tnc.partitioning,candidatepValues$Y,
+                                       candidatepValues$k,candidatepValues$af1,candidatepValues$as1,candidatepValues$sf1,candidatepValues$sr1)
+                } else {
+                  out.cand.set = model(no.param,data.set,tnc.partitioning,candidatepValues$Y,
+                                       candidatepValues$k,candidatepValues$af2,candidatepValues$as2,candidatepValues$sf2,candidatepValues$sr2)
+                }
               } else {
                 out.cand.set = model.without.storage(no.param,data.set,candidatepValues$Y,
                                                      candidatepValues$af,candidatepValues$as,candidatepValues$sf,candidatepValues$sr)
@@ -408,49 +424,56 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
           
           # Accepting or rejecting the candidate vector
           if (no.param.par.var == 4) {
-            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr[1] + candidatepValues$sr[2]*(nrow(data.set)) + candidatepValues$sr[3]*(nrow(data.set))^2 + candidatepValues$sr[4]*(nrow(data.set))^3) >= 0
-                 && (candidatepValues$sf[1] + candidatepValues$sf[2]*(nrow(data.set)) + candidatepValues$sf[3]*(nrow(data.set))^2 + candidatepValues$sf[4]*(nrow(data.set))^3) >= 0
+            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr1[1] + candidatepValues$sr1[2]*(nrow(data.set)) + candidatepValues$sr1[3]*(nrow(data.set))^2 + candidatepValues$sr1[4]*(nrow(data.set))^3) >= 0
+                 && (candidatepValues$sf1[1] + candidatepValues$sf1[2]*(nrow(data.set)) + candidatepValues$sf1[3]*(nrow(data.set))^2 + candidatepValues$sf1[4]*(nrow(data.set))^3) >= 0
                  && (candidatepValues$k[1] + candidatepValues$k[2]*(nrow(data.set)) + candidatepValues$k[3]*(nrow(data.set))^2 + candidatepValues$k[4]*(nrow(data.set))^3) >= 0
-                 && (candidatepValues$as[1] + candidatepValues$as[2]*(nrow(data.set)) + candidatepValues$as[3]*(nrow(data.set))^2 + candidatepValues$as[4]*(nrow(data.set))^3) >= 0
-                 && (candidatepValues$af[1] + candidatepValues$af[2]*(nrow(data.set)) + candidatepValues$af[3]*(nrow(data.set))^2 + candidatepValues$af[4]*(nrow(data.set))^3) >= 0
-                 && (1 - (candidatepValues$af[1] + candidatepValues$af[2]*(nrow(data.set)) + candidatepValues$af[3]*(nrow(data.set))^2 + candidatepValues$af[4]*(nrow(data.set))^3) - 
-                     (candidatepValues$as[1] + candidatepValues$as[2]*(nrow(data.set)) + candidatepValues$as[3]*(nrow(data.set))^2 + candidatepValues$as[4]*(nrow(data.set))^3)) >= 0 ) {
+                 && (candidatepValues$as1[1] + candidatepValues$as1[2]*(nrow(data.set)) + candidatepValues$as1[3]*(nrow(data.set))^2 + candidatepValues$as1[4]*(nrow(data.set))^3) >= 0
+                 && (candidatepValues$af1[1] + candidatepValues$af1[2]*(nrow(data.set)) + candidatepValues$af1[3]*(nrow(data.set))^2 + candidatepValues$af1[4]*(nrow(data.set))^3) >= 0
+                 && (1 - (candidatepValues$af1[1] + candidatepValues$af1[2]*(nrow(data.set)) + candidatepValues$af1[3]*(nrow(data.set))^2 + candidatepValues$af1[4]*(nrow(data.set))^3) - 
+                     (candidatepValues$as1[1] + candidatepValues$as1[2]*(nrow(data.set)) + candidatepValues$as1[3]*(nrow(data.set))^2 + candidatepValues$as1[4]*(nrow(data.set))^3)) >= 0 ) {
               # && ((1-candidatepValues$af[1]-candidatepValues$as[1])*(nrow(data.set)) + (1-candidatepValues$af[2]-candidatepValues$as[2])*(nrow(data.set))^2 + (1-candidatepValues$af[3]-candidatepValues$as[3])*(nrow(data.set))^3 + (1-candidatepValues$af[4]-candidatepValues$as[4])*(nrow(data.set))^4) >= 0) {
               pValues <- candidatepValues
               logPrior0 <- logPrior1
               logL0 <- logL1
             }
           } else if (no.param.par.var == 3) {
-            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr[1]*(nrow(data.set)) + candidatepValues$sr[2]*(nrow(data.set))^2 + candidatepValues$sr[3]*(nrow(data.set))^3) >= 0
-                 && (candidatepValues$sf[1] + candidatepValues$sf[2]*(nrow(data.set)) + candidatepValues$sf[3]*(nrow(data.set))^2) >= 0
+            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr1[1]*(nrow(data.set)) + candidatepValues$sr1[2]*(nrow(data.set))^2 + candidatepValues$sr1[3]*(nrow(data.set))^3) >= 0
+                 && (candidatepValues$sf1[1] + candidatepValues$sf1[2]*(nrow(data.set)) + candidatepValues$sf1[3]*(nrow(data.set))^2) >= 0
                  && (candidatepValues$k[1] + candidatepValues$k[2]*(nrow(data.set)) + candidatepValues$k[3]*(nrow(data.set))^2) >= 0
-                 && (candidatepValues$as[1] + candidatepValues$as[2]*(nrow(data.set)) + candidatepValues$as[3]*(nrow(data.set))^2) >= 0
-                 && (candidatepValues$af[1] + candidatepValues$af[2]*(nrow(data.set)) + candidatepValues$af[3]*(nrow(data.set))^2) >= 0
-                 && (1 - (candidatepValues$af[1] + candidatepValues$af[2]*(nrow(data.set)) + candidatepValues$af[3]*(nrow(data.set))^2) - 
-                     (candidatepValues$as[1] + candidatepValues$as[2]*(nrow(data.set)) + candidatepValues$as[3]*(nrow(data.set))^2)) >= 0 ) {
+                 && (candidatepValues$as1[1] + candidatepValues$as1[2]*(nrow(data.set)) + candidatepValues$as1[3]*(nrow(data.set))^2) >= 0
+                 && (candidatepValues$af1[1] + candidatepValues$af1[2]*(nrow(data.set)) + candidatepValues$af1[3]*(nrow(data.set))^2) >= 0
+                 && (1 - (candidatepValues$af1[1] + candidatepValues$af1[2]*(nrow(data.set)) + candidatepValues$af1[3]*(nrow(data.set))^2) - 
+                     (candidatepValues$as1[1] + candidatepValues$as1[2]*(nrow(data.set)) + candidatepValues$as1[3]*(nrow(data.set))^2)) >= 0 ) {
               pValues <- candidatepValues
               logPrior0 <- logPrior1
               logL0 <- logL1
             }
           } else if (no.param.par.var == 2) {
-            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr[1]*(nrow(data.set)) + candidatepValues$sr[2]*(nrow(data.set))^2) >= 0
-                 && (candidatepValues$sf[1] + candidatepValues$sf[2]*(nrow(data.set))) >= 0
+            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr1[1] + candidatepValues$sr1[2]*(nrow(data.set))) >= 0
+                 && (candidatepValues$sf1[1] + candidatepValues$sf1[2]*(nrow(data.set))) >= 0
                  && (candidatepValues$k[1] + candidatepValues$k[2]*(nrow(data.set))) >= 0
-                 && (candidatepValues$as[1] + candidatepValues$as[2]*(nrow(data.set))) >= 0
-                 && (candidatepValues$af[1] + candidatepValues$af[2]*(nrow(data.set))) >= 0
-                 && (1 - (candidatepValues$af[1] + candidatepValues$af[2]*(nrow(data.set))) - 
-                     (candidatepValues$as[1] + candidatepValues$as[2]*(nrow(data.set)))) >= 0 ) {
+                 && (candidatepValues$as1[1] + candidatepValues$as1[2]*(nrow(data.set))) >= 0
+                 && (candidatepValues$af1[1] + candidatepValues$af1[2]*(nrow(data.set))) >= 0
+                 && (1 - (candidatepValues$af1[1] + candidatepValues$af1[2]*(nrow(data.set))) - 
+                     (candidatepValues$as1[1] + candidatepValues$as1[2]*(nrow(data.set)))) >= 0
+                 && (candidatepValues$sr2[1] + candidatepValues$sr2[2]*(nrow(data.set))) >= 0
+                 && (candidatepValues$sf2[1] + candidatepValues$sf2[2]*(nrow(data.set))) >= 0
+                 && (candidatepValues$k[1] + candidatepValues$k[2]*(nrow(data.set))) >= 0
+                 && (candidatepValues$as2[1] + candidatepValues$as2[2]*(nrow(data.set))) >= 0
+                 && (candidatepValues$af2[1] + candidatepValues$af2[2]*(nrow(data.set))) >= 0
+                 && (1 - (candidatepValues$af2[1] + candidatepValues$af2[2]*(nrow(data.set))) - 
+                     (candidatepValues$as2[1] + candidatepValues$as2[2]*(nrow(data.set)))) >= 0) {
               pValues <- candidatepValues
               logPrior0 <- logPrior1
               logL0 <- logL1
             }
           } else if (no.param.par.var == 1) {
-            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr[1]) >= 0
-                 && (candidatepValues$sf[1]) >= 0
+            if ( log(runif(1, min = 0, max =1)) < logalpha && (candidatepValues$sr1[1]) >= 0
+                 && (candidatepValues$sf1[1]) >= 0
                  && (candidatepValues$k[1]) >= 0
-                 && (candidatepValues$as[1]) >= 0
-                 && (candidatepValues$af[1]) >= 0
-                 && (1 - candidatepValues$af[1] - candidatepValues$as[1]) >= 0 ) {
+                 && (candidatepValues$as1[1]) >= 0
+                 && (candidatepValues$af1[1]) >= 0
+                 && (1 - candidatepValues$af1[1] - candidatepValues$as1[1]) >= 0 ) {
               pValues <- candidatepValues
               logPrior0 <- logPrior1
               logL0 <- logL1
@@ -464,9 +487,9 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
           }
         }
         if (with.storage==T) {
-          pChain[c,] <- c(pValues$k,pValues$Y,pValues$af,pValues$as,pValues$sf,pValues$sr,logL0) # Assign the first parameter set with log likelihood
+          pChain[c,] <- c(pValues$k,pValues$Y,pValues$af1,pValues$as1,pValues$sf1,pValues$sr1,pValues$af2,pValues$as2,pValues$sf2,pValues$sr2,logL0) # Assign the first parameter set with log likelihood
         } else {
-          pChain[c,] <- c(pValues$Y,pValues$af,pValues$as,pValues$sf,pValues$sr,logL0) # Assign the first parameter set with log likelihood
+          pChain[c,] <- c(pValues$Y,pValues$af1,pValues$as1,pValues$sf1,pValues$sr1,pValues$af2,pValues$as2,pValues$sf2,pValues$sr2,logL0) # Assign the first parameter set with log likelihood
         }
       }
       
@@ -476,11 +499,12 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       if (no.param.par.var < 5) {
         if (with.storage==T) {
           if (no.param.par.var[z]==1) {
-            names(pChain) <- c("k1","Y1","af1","as1","sf1","sr1","logli")
+            names(pChain) <- c("k1","Y1","af11","as11","sf11","sr11","af21","as21","sf21","sr21","logli")
           } else if (no.param.par.var[z]==2) {
-            names(pChain) <- c("k1","k2","Y1","Y2","af1","af2","as1","as2","sf1","sf2","sr1","sr2","logli")
+            names(pChain) <- c("k1","k2","Y1","Y2","af11","af12","as11","as12","sf11","sf12","sr11","sr12","af21","af22","as21","as22","sf21","sf22","sr21","sr22","logli")
           } else if (no.param.par.var[z]==3) {
-            names(pChain) <- c("k1","k2","k3","Y1","Y2","Y3","af1","af2","af3","as1","as2","as3","sf1","sf2","sf3","sr1","sr2","sr3","logli")
+            names(pChain) <- c("k1","k2","k3","Y1","Y2","Y3","af11","af12","af13","as11","as12","as13","sf11","sf12","sf13","sr11","sr12","sr13",
+                               "af21","af22","af23","as21","as22","as23","sf21","sf22","sf23","sr21","sr22","sr23","logli")
           }
         } else {
           if (no.param.par.var[z]==1) {
@@ -498,22 +522,30 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       param.SD = apply(pChain[ , 1:(no.param*no.var)], 2, sd)
       param.final = data.frame(matrix(ncol = (no.var)*2, nrow = no.param))
       if (with.storage==T) {
-        names(param.final) <- c("k","Y","af","as","sf","sr","k_SD","Y_SD","af_SD","as_SD","sf_SD","sr_SD")
+        names(param.final) <- c("k","Y","af1","as1","sf1","sr1","af2","as2","sf2","sr2","k_SD","Y_SD","af1_SD","as1_SD","sf1_SD","sr1_SD","af2_SD","as2_SD","sf2_SD","sr2_SD")
         param.final$k = param.set[1:no.param]
         param.final$Y = param.set[(1+no.param):(2*no.param)]
-        param.final$af = param.set[(1+2*no.param):(3*no.param)]
-        param.final$as = param.set[(1+3*no.param):(4*no.param)]
-        param.final$sf = param.set[(1+4*no.param):(5*no.param)]
-        param.final$sr = param.set[(1+5*no.param):(6*no.param)]
+        param.final$af1 = param.set[(1+2*no.param):(3*no.param)]
+        param.final$as1 = param.set[(1+3*no.param):(4*no.param)]
+        param.final$sf1 = param.set[(1+4*no.param):(5*no.param)]
+        param.final$sr1 = param.set[(1+5*no.param):(6*no.param)]
+        param.final$af2 = param.set[(1+6*no.param):(7*no.param)]
+        param.final$as2 = param.set[(1+7*no.param):(8*no.param)]
+        param.final$sf2 = param.set[(1+8*no.param):(9*no.param)]
+        param.final$sr2 = param.set[(1+9*no.param):(10*no.param)]
         
         param.final$k_SD = param.SD[1:no.param]
         param.final$Y_SD = param.SD[(1+no.param):(2*no.param)]
-        param.final$af_SD = param.SD[(1+2*no.param):(3*no.param)]
-        param.final$as_SD = param.SD[(1+3*no.param):(4*no.param)]
-        param.final$sf_SD = param.SD[(1+4*no.param):(5*no.param)]
-        param.final$sr_SD = param.SD[(1+5*no.param):(6*no.param)]
+        param.final$af1_SD = param.SD[(1+2*no.param):(3*no.param)]
+        param.final$as1_SD = param.SD[(1+3*no.param):(4*no.param)]
+        param.final$sf1_SD = param.SD[(1+4*no.param):(5*no.param)]
+        param.final$sr1_SD = param.SD[(1+5*no.param):(6*no.param)]
+        param.final$af2_SD = param.SD[(1+6*no.param):(7*no.param)]
+        param.final$as2_SD = param.SD[(1+7*no.param):(8*no.param)]
+        param.final$sf2_SD = param.SD[(1+8*no.param):(9*no.param)]
+        param.final$sr2_SD = param.SD[(1+9*no.param):(10*no.param)]
       } else {
-        names(param.final) <- c("Y","af","as","sf","sr","Y_SD","af_SD","as_SD","sf_SD","sr_SD")
+        names(param.final) <- c("Y","af1","as1","sf1","sr1","af2","as2","sf2","sr2","k_SD","Y_SD","af1_SD","as1_SD","sf1_SD","sr1_SD","af2_SD","as2_SD","sf2_SD","sr2_SD")
         param.final$Y = param.set[1:no.param]
         param.final$af = param.set[(1+no.param):(2*no.param)]
         param.final$as = param.set[(1+2*no.param):(3*no.param)]
@@ -529,7 +561,7 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       
       # Calculate final output set from the predicted parameter set
       for (j in 1:length(v)) {
-        data.set = subset(data,(treatment.no %in% treat.group[v[j]]))
+        data.set = subset(data,(treatment.no %in% j))
         #   Mleaf = Mwood = Mroot = c()
         #   Mleaf[1] <- data.set$Mleaf[1]
         #   Mwood[1] <- data.set$Mwood[1]
@@ -537,8 +569,13 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
         
         if (no.param.par.var < 5) {
           if (with.storage==T) {
-            output.final.set = model(no.param,data.set,tnc.partitioning,param.final$Y,
-                                     param.final$k,param.final$af,param.final$as,param.final$sf,param.final$sr)
+            if (j==1) {
+              output.final.set = model(no.param,data.set,tnc.partitioning,param.final$Y,
+                                       param.final$k,param.final$af1,param.final$as1,param.final$sf1,param.final$sr1)
+            } else {
+              output.final.set = model(no.param,data.set,tnc.partitioning,param.final$Y,
+                                       param.final$k,param.final$af2,param.final$as2,param.final$sf2,param.final$sr2)
+            }
           } else {
             output.final.set = model.without.storage(no.param,data.set,param.final$Y,
                                                      param.final$af,param.final$as,param.final$sf,param.final$sr)
@@ -575,12 +612,12 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
         param.daily = param.final[1,]
         
         if (no.param == 1) {
-          for (i in 2:length(Days)) {
+          for (i in 1:length(Days)) {
             param.daily[i,] = param.final[1,]
           }
         }
         if (no.param == 2) {
-          for (i in 2:length(Days)) {
+          for (i in 1:length(Days)) {
             param.daily[i,1:no.var] = param.final[1,1:no.var] + param.final[2,1:no.var] * i
           }
           for (i in (no.var+1):(2*no.var)) {
@@ -588,7 +625,7 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
           }
         }
         if (no.param == 3) {
-          for (i in 2:length(Days)) {
+          for (i in 1:length(Days)) {
             param.daily[i,1:no.var] = param.final[1,1:no.var] + param.final[2,1:no.var] * i + param.final[3,1:no.var] * i^2
           }
           for (i in (no.var+1):(2*no.var)) {
@@ -596,22 +633,24 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
           }
         }
         if (no.param == 4) {
-          for (i in 2:length(Days)) {
+          for (i in 1:length(Days)) {
             param.daily[i,1:no.var] = param.final[1,1:no.var] + param.final[2,1:no.var] * i + param.final[3,1:no.var] * i^2 + param.final[4,1:no.var] * i^3
           }
           for (i in (no.var+1):(2*no.var)) {
             param.daily[,i] = ((param.final[1,i]^2 + param.final[2,i]^2 + param.final[3,i]^2 + param.final[4,i]^3)/4)^0.5
           }
         }
-        param.daily$ar = 1 - param.daily$af - param.daily$as
-        param.daily$ar_SD = with(param.daily, ((af_SD*af_SD + as_SD*as_SD)/2)^0.5)
+        param.daily$ar1 = 1 - param.daily$af1 - param.daily$as1
+        param.daily$ar1_SD = with(param.daily, ((af1_SD*af1_SD + as1_SD*as1_SD)/2)^0.5)
+        param.daily$ar2 = 1 - param.daily$af2 - param.daily$as2
+        param.daily$ar2_SD = with(param.daily, ((af2_SD*af2_SD + as2_SD*as2_SD)/2)^0.5)
         param.daily$Date = as.Date(data.set$Date)
         
         
         # Plotting the parameter sets over time
-        if (with.storage==T) { 
-          melted.param1 = melt(param.daily[,c("k","Y","af","as","ar","sf","sr","Date")], id.vars="Date")
-          melted.param2 = melt(param.daily[,c("k_SD","Y_SD","af_SD","as_SD","ar_SD","sf_SD","sr_SD","Date")], id.vars="Date")
+        if (with.storage==T) {
+          melted.param1 = melt(param.daily[,c("k","Y","af1","as1","ar1","sf1","sr1","k","Y","af2","as2","ar2","sf2","sr2","Date")], id.vars="Date")
+          melted.param2 = melt(param.daily[,c("k_SD","Y_SD","af1_SD","as1_SD","ar1_SD","sf1_SD","sr1_SD","k_SD","Y_SD","af2_SD","as2_SD","ar2_SD","sf2_SD","sr2_SD","Date")], id.vars="Date")
         } else {
           melted.param1 = melt(param.daily[,c("Y","af","as","ar","sf","sr","Date")], id.vars="Date")
           melted.param2 = melt(param.daily[,c("Y_SD","af_SD","as_SD","ar_SD","sf_SD","sr_SD","Date")], id.vars="Date")
@@ -619,7 +658,14 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
         melted.param = data.frame(melted.param1$Date, melted.param1$variable, melted.param1$value, melted.param2$value)
         names(melted.param) = c("Date","variable","Parameter","Parameter_SD")
         melted.param$Date = as.Date(melted.param$Date)
-        melted.param$treatment = as.factor(treat[v1])
+        melted.param$treatment = as.factor(treat[1])
+        
+        melted.param$treatment[melted.param$variable %in% as.factor("k.1") | melted.param$variable %in% as.factor("Y.1") | 
+                                 melted.param$variable %in% as.factor("af2") | melted.param$variable %in% as.factor("as2") |
+                                 melted.param$variable %in% as.factor("ar2") | melted.param$variable %in% as.factor("sf2") | 
+                                 melted.param$variable %in% as.factor("sr2")] = as.factor(treat[2])
+        
+        
         # melted.param$treat.type = as.factor(v1)
         melted.param$no.param = as.factor(no.param.par.var[z])
       } else { # no.param.par.var > 5; monthly parameter setting) 
@@ -645,7 +691,7 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       #----------------------------------------------------------------------------------------------------------------
       
       for (j in 1:length(v)) {
-        data.set = subset(data,(treatment.no %in% treat.group[v[j]]))
+        data.set = subset(data,(treatment.no %in% j))
         
         output.final.set = subset(output.final,(treatment %in% treat[v[j]]))
         output.final.set$Date = data.set$Date
@@ -838,9 +884,11 @@ CBM.wtc3 <- function(chainLength, no.param.par.var, treat.group, with.storage, m
       aic.bic[q,2] = -2*aic.bic[q,1] + k1*npar
       
       if (model.comparison==F) {
-        n = sum(!is.na(data.set$TNC_leaf)) + sum(!is.na(data.set$LM)) + sum(!is.na(data.set$WM)) + sum(!is.na(data.set$RM)) + sum(!is.na(data.set$litter))
+        # n = sum(!is.na(data.set$TNC_leaf)) + sum(!is.na(data.set$LM)) + sum(!is.na(data.set$WM)) + sum(!is.na(data.set$RM)) + sum(!is.na(data.set$litter))
+        n = sum(!is.na(data$TNC_leaf)) + sum(!is.na(data$LM)) + sum(!is.na(data$WM)) + sum(!is.na(data$RM)) + sum(!is.na(data$litter))
       } else {
-        n = sum(!is.na(data.set$LM)) + sum(!is.na(data.set$WM)) + sum(!is.na(data.set$RM)) + sum(!is.na(data.set$litter))
+        # n = sum(!is.na(data.set$LM)) + sum(!is.na(data.set$WM)) + sum(!is.na(data.set$RM)) + sum(!is.na(data.set$litter))
+        n = sum(!is.na(data$LM)) + sum(!is.na(data$WM)) + sum(!is.na(data$RM)) + sum(!is.na(data$litter))
       }
       k2 = log(n) # n being the number of observations for the so-called BIC
       aic.bic[q,3] = -2*aic.bic[q,1] + k2*npar
@@ -1234,6 +1282,18 @@ plot.Modelled.parameters.wtc3 <- function(result,with.storage) {
   summary.output = result[[1]][[4]]
   summary.error = result[[1]][[5]]
   
+  summary.param$var = as.character(summary.param$variable)
+  summary.param$var[summary.param$variable %in% as.factor("k.1")] = as.character("k")
+  summary.param$var[summary.param$variable %in% as.factor("Y.1")] = as.character("Y")
+  summary.param$var[summary.param$variable %in% as.factor("af1") | summary.param$variable %in% as.factor("af2")] = as.character("af")
+  summary.param$var[summary.param$variable %in% as.factor("as1") | summary.param$variable %in% as.factor("as2")] = as.character("as")
+  summary.param$var[summary.param$variable %in% as.factor("ar1") | summary.param$variable %in% as.factor("ar2")] = as.character("ar")
+  summary.param$var[summary.param$variable %in% as.factor("sf1") | summary.param$variable %in% as.factor("sf2")] = as.character("sf")
+  summary.param$var[summary.param$variable %in% as.factor("sr1") | summary.param$variable %in% as.factor("sr2")] = as.character("sr")
+  summary.param$var = as.factor(summary.param$var)
+  summary.param = summary.param[-c(2)]
+  names(summary.param)[ncol(summary.param)] = "variable"
+  
   for (p in 1:length(var)) {
     summary.param.set.limit = subset(summary.param, variable %in% var[p])
     for (z in 1:length(no.param.par.var)) {
@@ -1261,7 +1321,7 @@ plot.Modelled.parameters.wtc3 <- function(result,with.storage) {
         theme(axis.title.y = element_text(size = font.size, vjust=0.3)) +
         theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
       
-      if (with.storage==T) { 
+      if (with.storage==T) {
         if (p==1) {
           # plot[[i]] = plot[[i]] + scale_colour_manual(name="", breaks=c("1", "2", "3"),
           #                                             labels=c("Small", "Large", "Free"), values=cbPalette[2:4]) +
